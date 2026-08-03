@@ -1,0 +1,71 @@
+import type { AppState } from "@/lib/types";
+
+export const LISTAS_INICIAIS = {
+  categorias: [
+    "Honorários",
+    "Plotagem",
+    "Engenharia",
+    "Imposto",
+    "Taxas",
+    "Anuidade",
+    "Aluguel",
+    "Condomínio",
+    "Luz",
+    "Internet",
+    "Plano de Saúde",
+    "Salário/Estágio",
+    "MKT",
+    "Compras e Insumos",
+    "Financiamento",
+    "Cartão Crédito",
+    "Faxina",
+    "Colégio",
+    "Médico",
+    "TED Contas",
+    "Seguro",
+    "Reembolso Cliente",
+    "Outros",
+  ],
+  formas: ["Pix", "Boleto", "DA", "Cartão", "TED", "Dinheiro"],
+  contas: [
+    "Banco do Brasil (PF)",
+    "Santander (PF)",
+    "Bradesco (PF)",
+    "Caixa Econômica (PF)",
+    "Caixa Econômica (PJ)",
+    "PagBank (PJ)",
+  ],
+  gruposContaFixa: ["Escritório", "Engenharia/Render", "Pessoal"],
+  tiposProjeto: [
+    "Residencial Unifamiliar",
+    "Residencial Multifamiliar",
+    "Comercial",
+    "Reforma",
+    "Interiores",
+    "Outro",
+  ],
+  categoriasServico: ["Honorários", "Aditivo", "Engenharia"],
+  etapas: ["Lead", "Em contato", "Proposta enviada", "Contrato ativo", "Concluído", "Perdido"],
+};
+
+export const ENGENHEIROS_INICIAIS = [
+  { id: "eng1", nome: "Polatti Engenharia — Eng. Haroldo", pix: "polatti@engenharia.com.br" },
+  { id: "eng2", nome: "Multiobras — Eng. Ricardo", pix: "12.345.678/0001-90" },
+  { id: "eng3", nome: "Videl Engenharia — Eng. Lizandro", pix: "videl.eng@pix.com.br" },
+];
+
+export const estadoVazio = (): AppState => ({
+  clientes: [],
+  servicos: [],
+  parcelas: [],
+  reembolsaveis: [],
+  impostos: [],
+  repasses: [],
+  lancamentos: [],
+  contasFixas: [],
+  propostas: [],
+  engenheiros: ENGENHEIROS_INICIAIS,
+  listas: LISTAS_INICIAIS,
+  ano: new Date().getFullYear(),
+  saldoInicial: 0,
+});
