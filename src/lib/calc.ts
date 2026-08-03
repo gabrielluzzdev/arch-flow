@@ -142,3 +142,60 @@ export const propostaTotais = (itens: { qtd: number; valorUnit: number }[], desc
   const subtotal = itens.reduce((a, i) => a + (i.qtd || 0) * (i.valorUnit || 0), 0);
   return { subtotal, total: Math.max(0, subtotal - (desconto || 0)) };
 };
+
+export interface PrevisaoMes {
+  mes: number;
+  label: string;
+  entradas: number;
+  saidas: number;
+  acumulado: number;
+}
+
+/**
+ * Projeção do mês atual até dezembro: entradas = parcelas ainda não pagas
+ * com vencimento no mês; saídas = contas fixas orçadas para o mês.
+ * Repasses de engenharia pendentes não têm data de vencimento, então
+ * entram só no total de resumoPrevisao, não no gráfico mensal.
+ */
+export function previsaoMensal(state: AppState): PrevisaoMes[] {
+  const labels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const mesAtual = Number(todayISO().slice(5, 7));
+  const resumo = resumoMensal(state);
+  const base =
+    mesAtual > 1 ? (resumo.find((r) => r.mes === mesAtual - 1)?.acumulado ?? state.saldoInicial) : state.saldoInicial;
+
+  let acumulado = base;
+  const meses: PrevisaoMes[] = [];
+  for (let m = mesAtual; m <= 12; m++) {
+    const entradas = state.parcelas
+      .filter(
+        (p) =>
+          !p.dataPagamento &&
+          Number(p.vencimento.slice(0, 4)) === state.ano &&
+          Number(p.vencimento.slice(5, 7)) === m,
+      )
+      .reduce((a, p) => a + (p.valor - (p.valorPago ?? 0)), 0);
+    const saidas = state.contasFixas.reduce((a, c) => a + (c.meses[m - 1] || 0), 0);
+    acumulado += entradas - saidas;
+    meses.push({ mes: m, label: labels[m - 1]!, entradas, saidas, acumulado });
+  }
+  return meses;
+}
+
+export interface ResumoPrevisao {
+  totalAReceber: number;
+  totalContasFixasRestantes: number;
+  totalRepassesPendentes: number;
+  saldoProjetadoFimDoAno: number;
+}
+
+export function resumoPrevisao(state: AppState): ResumoPrevisao {
+  const previsao = previsaoMensal(state);
+  const totalAReceber = previsao.reduce((a, m) => a + m.entradas, 0);
+  const totalContasFixasRestantes = previsao.reduce((a, m) => a + m.saidas, 0);
+  const totalRepassesPendentes = state.repasses
+    .filter((r) => !r.dataPagamento)
+    .reduce((a, r) => a + r.valor, 0);
+  const saldoProjetadoFimDoAno = (previsao.at(-1)?.acumulado ?? state.saldoInicial) - totalRepassesPendentes;
+  return { totalAReceber, totalContasFixasRestantes, totalRepassesPendentes, saldoProjetadoFimDoAno };
+}

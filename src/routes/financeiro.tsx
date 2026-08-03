@@ -1,25 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Wallet } from "lucide-react";
+import { Download, Paperclip, Pencil, Trash2, Wallet } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
 import { Card, EmptyState, Money, StatusPill } from "@/components/common/primitives";
 import { Field, SelectInput, TextInput } from "@/components/common/fields";
 import { Modal } from "@/components/common/Modal";
-import { FluxoChart } from "@/components/dashboard/Charts";
+import { FluxoChart, ReceitaPorTipo } from "@/components/dashboard/Charts";
 import {
   contaFixaMedia,
   contaFixaTotal,
   nomeCliente,
   parcelaStatus,
+  previsaoMensal,
   rentabilidade,
   repasseStatus,
   resumoMensal,
+  resumoPrevisao,
 } from "@/lib/calc";
-import { brl, formatDate, mesDaData, MESES, pct, todayISO, uid } from "@/lib/format";
+import { brl, formatDate, mesDaData, MESES, pct, tamanhoLegivel, todayISO, uid } from "@/lib/format";
 import { baixarArquivo, paraCSV } from "@/lib/csv";
+import { enviarAnexo, listarAnexos, pastaLancamento, removerAnexo, urlAnexo, type Anexo } from "@/lib/storage";
 import { useApp, useDispatch } from "@/state/store";
+import type { Lancamento } from "@/lib/types";
 
 export const Route = createFileRoute("/financeiro")({
   head: () => ({
@@ -40,25 +44,33 @@ const ABAS = [
   "Contas a Pagar",
   "Reembolsáveis & Impostos",
   "Rentabilidade",
+  "Previsão",
 ] as const;
+
+const LANCAMENTO_VAZIO = {
+  data: todayISO(),
+  pe: "Empresa",
+  categoria: "",
+  descricao: "",
+  entrada: 0,
+  saida: 0,
+  forma: "",
+  conta: "",
+  obs: "",
+};
 
 function Financeiro() {
   const state = useApp();
   const dispatch = useDispatch();
   const [aba, setAba] = useState<(typeof ABAS)[number]>("Lançamentos");
   const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [confirmarExclusao, setConfirmarExclusao] = useState<string | null>(null);
   const [f, setF] = useState({ pe: "", categoria: "", conta: "", forma: "", busca: "" });
-  const [novo, setNovo] = useState({
-    data: todayISO(),
-    pe: "Empresa",
-    categoria: state.listas.categorias[0] ?? "",
-    descricao: "",
-    entrada: 0,
-    saida: 0,
-    forma: state.listas.formas[0] ?? "",
-    conta: state.listas.contas[0] ?? "",
-    obs: "",
-  });
+  const [novo, setNovo] = useState(LANCAMENTO_VAZIO);
+  const [arquivoNovo, setArquivoNovo] = useState<File | null>(null);
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [carregandoAnexos, setCarregandoAnexos] = useState(false);
 
   const lanc = state.lancamentos.filter(
     (l) =>
@@ -71,6 +83,16 @@ function Financeiro() {
   const totalEntrada = lanc.reduce((a, l) => a + l.entrada, 0);
   const totalSaida = lanc.reduce((a, l) => a + l.saida, 0);
   const resumo = resumoMensal(state);
+  const previsao = previsaoMensal(state);
+  const previsaoResumo = resumoPrevisao(state);
+
+  const saidasPorCategoria = useMemo(() => {
+    const mapa = new Map<string, number>();
+    lanc.forEach((l) => {
+      if (l.saida) mapa.set(l.categoria, (mapa.get(l.categoria) ?? 0) + l.saida);
+    });
+    return [...mapa.entries()].map(([tipo, valor]) => ({ tipo, valor })).sort((a, b) => b.valor - a.valor);
+  }, [lanc]);
 
   const exportarCSV = () => {
     const linhas = [
@@ -90,8 +112,108 @@ function Financeiro() {
     baixarArquivo(`lancamentos-${todayISO()}.csv`, paraCSV(linhas));
   };
 
+  const carregarAnexosDe = (lancamentoId: string) => {
+    setCarregandoAnexos(true);
+    listarAnexos(pastaLancamento(lancamentoId))
+      .then(setAnexos)
+      .catch((err) => {
+        console.error(err);
+        toast.error("Não foi possível carregar os anexos.");
+      })
+      .finally(() => setCarregandoAnexos(false));
+  };
+
+  const abrirNovo = () => {
+    setEditando(null);
+    setNovo({
+      ...LANCAMENTO_VAZIO,
+      categoria: state.listas.categorias[0] ?? "",
+      forma: state.listas.formas[0] ?? "",
+      conta: state.listas.contas[0] ?? "",
+    });
+    setArquivoNovo(null);
+    setAnexos([]);
+    setAberto(true);
+  };
+
+  const abrirEdicao = (l: Lancamento) => {
+    setEditando(l.id);
+    setNovo({
+      data: l.data,
+      pe: l.pe,
+      categoria: l.categoria,
+      descricao: l.descricao,
+      entrada: l.entrada,
+      saida: l.saida,
+      forma: l.forma ?? "",
+      conta: l.conta ?? "",
+      obs: l.obs ?? "",
+    });
+    setArquivoNovo(null);
+    setAberto(true);
+    carregarAnexosDe(l.id);
+  };
+
+  const salvar = () => {
+    if (!novo.descricao) {
+      toast.error("Informe a descrição do lançamento.");
+      return;
+    }
+    const id = editando ?? uid();
+    if (editando) {
+      dispatch({
+        type: "update",
+        entidade: "lancamentos",
+        id,
+        patch: { ...novo, pe: novo.pe as "Empresa" | "Pessoal" },
+      });
+    } else {
+      dispatch({
+        type: "add",
+        entidade: "lancamentos",
+        item: { id, ...novo, pe: novo.pe as "Empresa" | "Pessoal" },
+      });
+    }
+    if (arquivoNovo) {
+      enviarAnexo(pastaLancamento(id), arquivoNovo)
+        .then(() => toast.success("Anexo enviado."))
+        .catch((err) => {
+          console.error(err);
+          toast.error("Lançamento salvo, mas falhou o envio do anexo.");
+        });
+    }
+    setAberto(false);
+  };
+
+  const excluirLancamento = (id: string) => {
+    if (confirmarExclusao !== id) {
+      setConfirmarExclusao(id);
+      return;
+    }
+    dispatch({ type: "remove", entidade: "lancamentos", id });
+    setConfirmarExclusao(null);
+  };
+
+  const baixarAnexo = (path: string) => {
+    urlAnexo(path)
+      .then((url) => window.open(url, "_blank"))
+      .catch((err) => {
+        console.error(err);
+        toast.error("Falha ao gerar o link de download.");
+      });
+  };
+
+  const removerAnexoDoLancamento = (path: string) => {
+    removerAnexo(path)
+      .then(() => setAnexos((prev) => prev.filter((a) => a.path !== path)))
+      .catch((err) => {
+        console.error(err);
+        toast.error("Falha ao remover o anexo.");
+      });
+  };
+
   return (
-    <AppShell title="Financeiro" action={<NovoButton label="Novo lançamento" onClick={() => setAberto(true)} />}>
+    <AppShell title="Financeiro" action={<NovoButton label="Novo lançamento" onClick={abrirNovo} />}>
       <div className="mb-4 -mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         {ABAS.map((a) => (
           <button key={a} onClick={() => setAba(a)} className={`shrink-0 rounded-lg px-3 py-2 text-sm ${aba === a ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}>
@@ -112,10 +234,16 @@ function Financeiro() {
               <Download className="h-4 w-4" strokeWidth={1.5} /> Exportar CSV
             </Button>
           </div>
+          {saidasPorCategoria.length ? (
+            <Card className="mb-4">
+              <p className="label-caps mb-3">Saídas por categoria</p>
+              <ReceitaPorTipo data={saidasPorCategoria} />
+            </Card>
+          ) : null}
           <Card className="overflow-x-auto p-0">
             {lanc.length ? (
-              <table className="w-full min-w-[900px] text-sm">
-                <thead><tr className="border-b border-border">{["Data", "Mês", "P/E", "Categoria", "Descrição", "Entrada", "Saída", "Forma", "Conta"].map((h) => <th key={h} className="label-caps px-4 py-3 text-left">{h}</th>)}</tr></thead>
+              <table className="w-full min-w-[960px] text-sm">
+                <thead><tr className="border-b border-border">{["Data", "Mês", "P/E", "Categoria", "Descrição", "Valor", "Forma", "Conta", ""].map((h) => <th key={h} className="label-caps px-4 py-3 text-left">{h}</th>)}</tr></thead>
                 <tbody>
                   {lanc.map((l) => (
                     <tr key={l.id} className="border-b border-border last:border-0 hover:bg-muted/40">
@@ -124,22 +252,46 @@ function Financeiro() {
                       <td className="px-4 py-3 text-muted-foreground">{l.pe}</td>
                       <td className="px-4 py-3 text-muted-foreground">{l.categoria}</td>
                       <td className="px-4 py-3">{l.descricao}</td>
-                      <td className="px-4 py-3 text-right">{l.entrada ? <Money value={l.entrada} tone="positive" /> : "—"}</td>
-                      <td className="px-4 py-3 text-right">{l.saida ? <Money value={l.saida} tone="negative" /> : "—"}</td>
+                      <td className="px-4 py-3 text-right">
+                        {l.entrada ? (
+                          <span className="num inline-flex items-center rounded-md bg-positive/10 px-2 py-1 text-xs font-medium text-positive">
+                            + {brl(l.entrada)}
+                          </span>
+                        ) : l.saida ? (
+                          <span className="num inline-flex items-center rounded-md bg-negative/10 px-2 py-1 text-xs font-medium text-negative">
+                            − {brl(l.saida)}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{l.forma ?? "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{l.conta ?? "—"}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" aria-label="Editar" onClick={() => abrirEdicao(l)}>
+                            <Pencil className="h-4 w-4" strokeWidth={1.5} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={confirmarExclusao === l.id ? "danger" : "ghost"}
+                            onClick={() => excluirLancamento(l.id)}
+                          >
+                            {confirmarExclusao === l.id ? "Confirmar" : <Trash2 className="h-4 w-4" strokeWidth={1.5} />}
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   <tr className="bg-muted/40 font-medium">
                     <td className="px-4 py-3" colSpan={5}>Totais</td>
-                    <td className="px-4 py-3 text-right"><Money value={totalEntrada} tone="positive" /></td>
-                    <td className="px-4 py-3 text-right"><Money value={totalSaida} tone="negative" /></td>
-                    <td colSpan={2} />
+                    <td className="px-4 py-3 text-right"><Money value={totalEntrada - totalSaida} tone="auto" /></td>
+                    <td colSpan={3} />
                   </tr>
                 </tbody>
               </table>
             ) : (
-              <EmptyState icon={Wallet} title="Nenhum lançamento" description="Registre entradas e saídas para alimentar o fluxo de caixa." action={<Button onClick={() => setAberto(true)}>Novo lançamento</Button>} />
+              <EmptyState icon={Wallet} title="Nenhum lançamento" description="Registre entradas e saídas para alimentar o fluxo de caixa." action={<Button onClick={abrirNovo}>Novo lançamento</Button>} />
             )}
           </Card>
         </>
@@ -305,31 +457,57 @@ function Financeiro() {
         </Card>
       ) : null}
 
+      {aba === "Previsão" ? (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Card>
+              <p className="label-caps">A receber (parcelas futuras)</p>
+              <p className="num mt-3 text-2xl text-foreground">{brl(previsaoResumo.totalAReceber)}</p>
+            </Card>
+            <Card>
+              <p className="label-caps">Contas fixas restantes no ano</p>
+              <p className="num mt-3 text-2xl text-foreground">{brl(previsaoResumo.totalContasFixasRestantes)}</p>
+            </Card>
+            <Card>
+              <p className="label-caps">Repasses pendentes</p>
+              <p className="num mt-3 text-2xl text-foreground">{brl(previsaoResumo.totalRepassesPendentes)}</p>
+            </Card>
+            <Card>
+              <p className="label-caps">Saldo projetado (dez/{state.ano})</p>
+              <p className="num mt-3 text-2xl text-foreground">{brl(previsaoResumo.saldoProjetadoFimDoAno)}</p>
+            </Card>
+          </div>
+          <Card>
+            <p className="label-caps mb-3">Projeção mensal (a partir do mês atual)</p>
+            <FluxoChart data={previsao} />
+          </Card>
+          <Card className="overflow-x-auto p-0">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead><tr className="border-b border-border">{["Mês", "Entradas previstas", "Saídas previstas", "Saldo projetado"].map((h) => <th key={h} className="label-caps px-4 py-3 text-left">{h}</th>)}</tr></thead>
+              <tbody>
+                {previsao.map((p) => (
+                  <tr key={p.mes} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3">{p.label}</td>
+                    <td className="px-4 py-3 text-right"><Money value={p.entradas} tone="positive" /></td>
+                    <td className="px-4 py-3 text-right"><Money value={p.saidas} tone="negative" /></td>
+                    <td className="px-4 py-3 text-right"><Money value={p.acumulado} tone="auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </div>
+      ) : null}
+
       <Modal
         open={aberto}
         onClose={() => setAberto(false)}
-        title="Novo lançamento"
+        title={editando ? "Editar lançamento" : "Novo lançamento"}
         wide
         footer={
           <>
             <Button variant="ghost" onClick={() => setAberto(false)}>Cancelar</Button>
-            <Button
-              onClick={() => {
-                if (!novo.descricao) {
-                  toast.error("Informe a descrição do lançamento.");
-                  return;
-                }
-                dispatch({
-                  type: "add",
-                  entidade: "lancamentos",
-                  item: { id: uid(), ...novo, pe: novo.pe as "Empresa" | "Pessoal" },
-                });
-                setNovo({ ...novo, descricao: "", entrada: 0, saida: 0, obs: "" });
-                setAberto(false);
-              }}
-            >
-              Salvar lançamento
-            </Button>
+            <Button onClick={salvar}>{editando ? "Salvar alterações" : "Salvar lançamento"}</Button>
           </>
         }
       >
@@ -344,6 +522,43 @@ function Financeiro() {
           <Field label="Forma"><SelectInput options={state.listas.formas} value={novo.forma} onChange={(e) => setNovo({ ...novo, forma: e.target.value })} /></Field>
           <Field label="Conta"><SelectInput options={state.listas.contas} value={novo.conta} onChange={(e) => setNovo({ ...novo, conta: e.target.value })} /></Field>
           <Field label="Observação" className="sm:col-span-2"><TextInput value={novo.obs} onChange={(e) => setNovo({ ...novo, obs: e.target.value })} /></Field>
+          <Field label="Nota fiscal / comprovante (opcional)" className="sm:col-span-2">
+            <input
+              type="file"
+              onChange={(e) => setArquivoNovo(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border file:border-border file:bg-card file:px-3 file:py-1.5 file:text-sm file:text-foreground"
+            />
+          </Field>
+          {editando ? (
+            <div className="sm:col-span-2">
+              <p className="label-caps mb-2">Anexos já enviados</p>
+              {carregandoAnexos ? (
+                <p className="text-sm text-muted-foreground">Carregando…</p>
+              ) : anexos.length ? (
+                <ul className="divide-y divide-border">
+                  {anexos.map((a) => (
+                    <li key={a.path} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+                        <span className="truncate">{a.nome.replace(/^\d+-/, "")}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{tamanhoLegivel(a.tamanho)}</span>
+                      </span>
+                      <div className="flex shrink-0 gap-1">
+                        <Button size="sm" variant="ghost" aria-label="Baixar" onClick={() => baixarAnexo(a.path)}>
+                          <Download className="h-4 w-4" strokeWidth={1.5} />
+                        </Button>
+                        <Button size="sm" variant="ghost" aria-label="Remover" onClick={() => removerAnexoDoLancamento(a.path)}>
+                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">Nenhum anexo ainda.</p>
+              )}
+            </div>
+          ) : null}
         </div>
       </Modal>
     </AppShell>

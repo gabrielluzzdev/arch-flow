@@ -13,6 +13,10 @@ export function pastaCliente(clienteId: string) {
   return `clientes/${clienteId}`;
 }
 
+export function pastaLancamento(lancamentoId: string) {
+  return `lancamentos/${lancamentoId}`;
+}
+
 export async function listarAnexos(pasta: string): Promise<Anexo[]> {
   const { data, error } = await supabase.storage.from(BUCKET).list(pasta, {
     sortBy: { column: "created_at", order: "desc" },
