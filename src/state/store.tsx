@@ -172,6 +172,7 @@ async function carregarEstado(): Promise<AppState> {
     tiposProjeto: [],
     categoriasServico: [],
     etapas: [],
+    responsaveis: [],
   };
   for (const row of listasRows.data ?? []) {
     const chave = row.chave as keyof Listas;

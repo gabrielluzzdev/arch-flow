@@ -46,6 +46,7 @@ export const LISTAS_INICIAIS = {
   ],
   categoriasServico: ["Honorários", "Aditivo", "Engenharia"],
   etapas: ["Lead", "Em contato", "Proposta enviada", "Contrato ativo", "Concluído", "Perdido"],
+  responsaveis: ["Luz Botelho"],
 };
 
 export const ENGENHEIROS_INICIAIS = [

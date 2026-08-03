@@ -129,6 +129,7 @@ export interface Listas {
   tiposProjeto: string[];
   categoriasServico: string[];
   etapas: string[];
+  responsaveis: string[];
 }
 
 export interface AppState {

@@ -22,7 +22,7 @@ import {
 } from "@/components/common/primitives";
 import { FluxoChart, ReceitaPorTipo } from "@/components/dashboard/Charts";
 import { clienteTotais, parcelaStatus, resumoMensal } from "@/lib/calc";
-import { brl, formatDate, num } from "@/lib/format";
+import { brl, formatDate, num, todayISO } from "@/lib/format";
 import { useApp, useDispatch } from "@/state/store";
 
 export const Route = createFileRoute("/")({
@@ -310,8 +310,28 @@ function Dashboard() {
                       </div>
                       <div className="shrink-0 text-right">
                         <Money value={v.valor} tone={v.tipo === "Receber" ? "positive" : "negative"} className="text-sm" />
-                        <div className="mt-1">
+                        <div className="mt-1 flex items-center justify-end gap-2">
                           <StatusPill status={v.status} />
+                          <button
+                            className="text-xs font-medium text-primary hover:underline"
+                            onClick={() =>
+                              v.tipo === "Receber"
+                                ? dispatch({
+                                    type: "update",
+                                    entidade: "parcelas",
+                                    id: v.id,
+                                    patch: { dataPagamento: todayISO(), valorPago: v.valor },
+                                  })
+                                : dispatch({
+                                    type: "update",
+                                    entidade: "repasses",
+                                    id: v.id,
+                                    patch: { dataPagamento: todayISO() },
+                                  })
+                            }
+                          >
+                            Marcar pago
+                          </button>
                         </div>
                       </div>
                     </li>

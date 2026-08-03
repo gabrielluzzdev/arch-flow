@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FileDown, FileText } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
@@ -8,9 +8,9 @@ import { Card, EmptyState, Money, StatusPill } from "@/components/common/primiti
 import { Field, SelectInput, TextArea, TextInput } from "@/components/common/fields";
 import { Modal } from "@/components/common/Modal";
 import { propostaTotais } from "@/lib/calc";
-import { brl, formatDate, todayISO, uid } from "@/lib/format";
+import { brl, formatDate, pct, todayISO, uid } from "@/lib/format";
 import { useApp, useDispatch } from "@/state/store";
-import type { PropostaItem } from "@/lib/types";
+import type { Proposta, PropostaItem } from "@/lib/types";
 
 export const Route = createFileRoute("/propostas")({
   head: () => ({
@@ -23,6 +23,8 @@ export const Route = createFileRoute("/propostas")({
   }),
   component: Propostas,
 });
+
+const STATUS_FUNIL: Proposta["status"][] = ["Rascunho", "Enviada", "Aceita", "Recusada"];
 
 function Propostas() {
   const state = useApp();
@@ -39,6 +41,19 @@ function Propostas() {
   });
   const [itens, setItens] = useState<PropostaItem[]>([{ id: uid(), descricao: "", qtd: 1, valorUnit: 0 }]);
   const { subtotal, total } = propostaTotais(itens, form.desconto);
+
+  const porStatus = useMemo(
+    () =>
+      STATUS_FUNIL.map((status) => {
+        const doStatus = state.propostas.filter((p) => p.status === status);
+        const valor = doStatus.reduce((a, p) => a + propostaTotais(p.itens, p.desconto).total, 0);
+        return { status, qtd: doStatus.length, valor };
+      }),
+    [state.propostas],
+  );
+  const enviadasOuMais = state.propostas.filter((p) => p.status !== "Rascunho").length;
+  const aceitas = state.propostas.filter((p) => p.status === "Aceita").length;
+  const taxaConversao = enviadasOuMais > 0 ? aceitas / enviadasOuMais : 0;
 
   const salvar = (status: "Rascunho" | "Enviada") => {
     const nome = form.clienteId ? (state.clientes.find((c) => c.id === form.clienteId)?.nome ?? "") : form.clienteNome;
@@ -69,8 +84,61 @@ function Propostas() {
     setItens([{ id: uid(), descricao: "", qtd: 1, valorUnit: 0 }]);
   };
 
+  // Aceitar uma proposta vira contrato de verdade: cria o cliente (se ainda
+  // não existir), passa a etapa dele para "Contrato ativo" e lança o valor
+  // da proposta como um serviço de honorários no contrato.
+  const aceitar = (p: Proposta) => {
+    dispatch({ type: "update", entidade: "propostas", id: p.id, patch: { status: "Aceita" } });
+    const { total: totalProposta } = propostaTotais(p.itens, p.desconto);
+    let clienteId = p.clienteId;
+    if (clienteId) {
+      dispatch({ type: "update", entidade: "clientes", id: clienteId, patch: { etapa: "Contrato ativo" } });
+    } else {
+      clienteId = uid();
+      dispatch({
+        type: "add",
+        entidade: "clientes",
+        item: {
+          id: clienteId,
+          codigo: `LB${String(new Date().getFullYear()).slice(2)}${String(state.clientes.length + 1).padStart(2, "0")}`,
+          nome: p.clienteNome,
+          documento: "",
+          tipoProjeto: state.listas.tiposProjeto[0] ?? "",
+          endereco: "",
+          numeroContrato: "",
+          dataInicial: todayISO(),
+          etapa: "Contrato ativo",
+          responsavel: state.listas.responsaveis[0] ?? "",
+        },
+      });
+    }
+    dispatch({
+      type: "add",
+      entidade: "servicos",
+      item: { id: uid(), clienteId, descricao: p.titulo, categoria: "Honorários", area: 1, valorM2: totalProposta },
+    });
+    toast.success("Proposta aceita — contrato criado no cliente.");
+  };
+
   return (
     <AppShell title="Propostas" action={<NovoButton label="Nova proposta" onClick={() => setAberto(true)} />}>
+      {state.propostas.length ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          {porStatus.map((s) => (
+            <Card key={s.status}>
+              <p className="label-caps">{s.status}</p>
+              <p className="num mt-2 text-xl text-foreground">{s.qtd}</p>
+              <p className="num mt-1 text-xs text-muted-foreground">{brl(s.valor)}</p>
+            </Card>
+          ))}
+          <Card>
+            <p className="label-caps">Taxa de conversão</p>
+            <p className="num mt-2 text-xl text-foreground">{pct(taxaConversao)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Aceitas / enviadas ou mais</p>
+          </Card>
+        </div>
+      ) : null}
+
       {state.propostas.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {state.propostas.map((p) => {
@@ -97,8 +165,13 @@ function Propostas() {
                     </Button>
                   ) : null}
                   {p.status !== "Aceita" ? (
-                    <Button size="sm" variant="ghost" onClick={() => dispatch({ type: "update", entidade: "propostas", id: p.id, patch: { status: "Aceita" } })}>
+                    <Button size="sm" variant="ghost" onClick={() => aceitar(p)}>
                       Aceitar
+                    </Button>
+                  ) : null}
+                  {p.status !== "Aceita" && p.status !== "Recusada" ? (
+                    <Button size="sm" variant="ghost" onClick={() => dispatch({ type: "update", entidade: "propostas", id: p.id, patch: { status: "Recusada" } })}>
+                      Recusar
                     </Button>
                   ) : null}
                   <Button size="sm" variant="ghost" onClick={() => dispatch({ type: "add", entidade: "propostas", item: { ...p, id: uid(), status: "Rascunho", criadaEm: todayISO() } })}>

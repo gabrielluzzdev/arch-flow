@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { KanbanSquare, List, Users } from "lucide-react";
+import { KanbanSquare, List, Settings, Users, X } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
 import { Card, EmptyState, Money, Stagger, StaggerItem } from "@/components/common/primitives";
@@ -86,6 +86,15 @@ function Clientes() {
     dispatch({ type: "setListas", listas: { etapas } });
   };
 
+  const removerEtapa = (etapa: string) => {
+    const emUso = state.clientes.filter((c) => c.etapa === etapa).length;
+    if (emUso > 0) {
+      toast.error(`Mova os ${emUso} cliente(s) dessa etapa antes de excluí-la.`);
+      return;
+    }
+    dispatch({ type: "setListas", listas: { etapas: state.listas.etapas.filter((e) => e !== etapa) } });
+  };
+
   return (
     <AppShell title="Clientes & Contratos" action={<NovoButton label="Novo cliente" onClick={() => setAberto(true)} />}>
       <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -133,6 +142,11 @@ function Clientes() {
           value={ordem}
           onChange={(e) => setOrdem(e.target.value as typeof ordem)}
         />
+        <Link to="/configuracoes" className="ml-auto">
+          <Button size="sm" variant="outline" aria-label="Configurações do funil">
+            <Settings className="h-4 w-4" strokeWidth={1.5} /> Configurar listas
+          </Button>
+        </Link>
       </div>
 
       {state.clientes.length === 0 ? (
@@ -173,6 +187,9 @@ function Clientes() {
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => moverEtapa(etapa, 1)} aria-label="Mover etapa para a direita">
                       ›
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => removerEtapa(etapa)} aria-label="Excluir etapa">
+                      <X className="h-3.5 w-3.5" strokeWidth={1.5} />
                     </Button>
                   </div>
                 </div>
@@ -291,7 +308,14 @@ function Clientes() {
           <Field label="Etapa do funil">
             <SelectInput options={state.listas.etapas} value={form.etapa} onChange={(e) => setForm({ ...form, etapa: e.target.value })} />
           </Field>
-          <Field label="Responsável"><TextInput value={form.responsavel} onChange={(e) => setForm({ ...form, responsavel: e.target.value })} /></Field>
+          <Field label="Responsável">
+            <SelectInput
+              options={state.listas.responsaveis}
+              placeholder="Selecionar"
+              value={form.responsavel}
+              onChange={(e) => setForm({ ...form, responsavel: e.target.value })}
+            />
+          </Field>
         </div>
       </Modal>
     </AppShell>
