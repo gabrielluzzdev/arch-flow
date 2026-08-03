@@ -15,6 +15,7 @@ import { StoreProvider } from "@/state/store";
 import { AuthProvider, useAuth } from "@/state/auth";
 import { Splash } from "@/components/layout/Splash";
 import { Login } from "@/components/layout/Login";
+import { ChangePassword } from "@/components/layout/ChangePassword";
 import { Toaster } from "@/components/ui/sonner";
 import { registerServiceWorker } from "@/lib/pwa";
 
@@ -159,10 +160,11 @@ function RootComponent() {
 }
 
 function AppGate() {
-  const { session, loading } = useAuth();
+  const { session, loading, mustChangePassword } = useAuth();
 
   if (loading) return null;
   if (!session) return <Login />;
+  if (mustChangePassword) return <ChangePassword />;
 
   return (
     <StoreProvider>

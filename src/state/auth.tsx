@@ -5,8 +5,10 @@ import { supabase } from "@/lib/supabase";
 interface AuthValue {
   session: Session | null;
   loading: boolean;
+  mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -35,8 +37,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const updatePassword: AuthValue["updatePassword"] = async (password) => {
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { must_change_password: false },
+    });
+    return { error: error?.message ?? null };
+  };
+
+  const mustChangePassword = session?.user.user_metadata?.["must_change_password"] === true;
+
   return (
-    <AuthContext.Provider value={{ session, loading, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ session, loading, mustChangePassword, signIn, signOut, updatePassword }}
+    >
       {children}
     </AuthContext.Provider>
   );
