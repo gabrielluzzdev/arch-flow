@@ -24,8 +24,19 @@ export function Field({
 const baseInput =
   "h-10 w-full rounded-lg border px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus-visible:border-editable";
 
-export function TextInput({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(baseInput, "field-editable num", className)} {...rest} />;
+export function TextInput({ className, onFocus, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(baseInput, "field-editable num", className)}
+      onFocus={(e) => {
+        // Campos numéricos costumam começar em 0 — seleciona o conteúdo ao
+        // focar para que digitar substitua o zero em vez de emendar nele.
+        if (rest.type === "number") e.target.select();
+        onFocus?.(e);
+      }}
+      {...rest}
+    />
+  );
 }
 
 export function TextArea({ className, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
