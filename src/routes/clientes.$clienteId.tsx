@@ -15,7 +15,7 @@ import {
   repasseStatus,
   servicoTotal,
 } from "@/lib/calc";
-import { brl, formatDate, num, pct, todayISO, uid } from "@/lib/format";
+import { brl, formatDate, num, pct, tamanhoLegivel, todayISO, uid } from "@/lib/format";
 import { useApp, useDispatch } from "@/state/store";
 import {
   enviarAnexo,
@@ -25,18 +25,12 @@ import {
   urlAnexo,
   type Anexo,
 } from "@/lib/storage";
+import type { TarefaStatus } from "@/lib/types";
 
 function somarDias(iso: string, dias: number) {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + dias);
   return d.toISOString().slice(0, 10);
-}
-
-function tamanhoLegivel(bytes?: number) {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export const Route = createFileRoute("/clientes/$clienteId")({
@@ -59,6 +53,7 @@ const ABAS = [
   "Impostos NF",
   "Repasses",
   "Rentabilidade",
+  "Tarefas",
   "Anexos",
   "Notas",
 ] as const;
@@ -80,6 +75,7 @@ function DetalheCliente() {
   const [carregandoAnexos, setCarregandoAnexos] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [novaTarefa, setNovaTarefa] = useState({ titulo: "", responsavel: "", prazo: "" });
 
   useEffect(() => {
     let cancelado = false;
@@ -150,7 +146,31 @@ function DetalheCliente() {
   const reembolsaveis = state.reembolsaveis.filter((r) => r.clienteId === cliente.id);
   const impostos = state.impostos.filter((r) => r.clienteId === cliente.id);
   const repasses = state.repasses.filter((r) => r.clienteId === cliente.id);
+  const tarefas = state.tarefas.filter((t) => t.clienteId === cliente.id);
   const rent = rentabilidade(state).find((r) => r.cliente.id === cliente.id);
+
+  const COLUNAS_TAREFA: TarefaStatus[] = ["A fazer", "Em andamento", "Concluída"];
+
+  const adicionarTarefa = () => {
+    if (!novaTarefa.titulo.trim()) {
+      toast.error("Informe o título da tarefa.");
+      return;
+    }
+    dispatch({
+      type: "add",
+      entidade: "tarefas",
+      item: {
+        id: uid(),
+        clienteId: cliente.id,
+        titulo: novaTarefa.titulo.trim(),
+        status: "A fazer",
+        criadaEm: todayISO(),
+        ...(novaTarefa.responsavel ? { responsavel: novaTarefa.responsavel } : {}),
+        ...(novaTarefa.prazo ? { prazo: novaTarefa.prazo } : {}),
+      },
+    });
+    setNovaTarefa({ titulo: "", responsavel: "", prazo: "" });
+  };
 
   return (
     <AppShell title={cliente.nome}>
@@ -342,6 +362,86 @@ function DetalheCliente() {
                 onChange={(e) => dispatch({ type: "update", entidade: "clientes", id: cliente.id, patch: { custasFixas: Number(e.target.value) } })}
               />
             </Field>
+          </div>
+        ) : null}
+
+        {aba === "Tarefas" ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {COLUNAS_TAREFA.map((status) => (
+              <div key={status} className="rounded-xl border border-border bg-card/60 p-3">
+                <p className="label-caps mb-3">{status} · {tarefas.filter((t) => t.status === status).length}</p>
+                <div className="space-y-2">
+                  {tarefas
+                    .filter((t) => t.status === status)
+                    .map((tf) => (
+                      <div key={tf.id} className="rounded-lg border border-border bg-card p-3">
+                        <p className="text-sm text-foreground">{tf.titulo}</p>
+                        {tf.responsavel || tf.prazo ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {tf.responsavel ?? ""}
+                            {tf.responsavel && tf.prazo ? " · " : ""}
+                            {tf.prazo ? formatDate(tf.prazo) : ""}
+                          </p>
+                        ) : null}
+                        <div className="mt-2 flex items-center justify-between gap-1">
+                          <SelectInput
+                            className="h-8 text-xs"
+                            options={COLUNAS_TAREFA}
+                            value={tf.status}
+                            onChange={(e) =>
+                              dispatch({
+                                type: "update",
+                                entidade: "tarefas",
+                                id: tf.id,
+                                patch: { status: e.target.value },
+                              })
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label="Remover tarefa"
+                            onClick={() => dispatch({ type: "remove", entidade: "tarefas", id: tf.id })}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  {!tarefas.filter((t) => t.status === status).length ? (
+                    <p className="text-xs text-muted-foreground">Nada por aqui.</p>
+                  ) : null}
+                </div>
+                {status === "A fazer" ? (
+                  <div className="mt-3 space-y-2 border-t border-border pt-3">
+                    <TextInput
+                      className="h-9"
+                      placeholder="Nova tarefa"
+                      value={novaTarefa.titulo}
+                      onChange={(e) => setNovaTarefa({ ...novaTarefa, titulo: e.target.value })}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <SelectInput
+                        className="h-9 text-xs"
+                        options={state.listas.responsaveis}
+                        placeholder="Responsável"
+                        value={novaTarefa.responsavel}
+                        onChange={(e) => setNovaTarefa({ ...novaTarefa, responsavel: e.target.value })}
+                      />
+                      <TextInput
+                        className="h-9"
+                        type="date"
+                        value={novaTarefa.prazo}
+                        onChange={(e) => setNovaTarefa({ ...novaTarefa, prazo: e.target.value })}
+                      />
+                    </div>
+                    <Button size="sm" variant="outline" className="w-full" onClick={adicionarTarefa}>
+                      Adicionar tarefa
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </div>
         ) : null}
 

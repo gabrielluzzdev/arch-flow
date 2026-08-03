@@ -121,6 +121,18 @@ export interface Engenheiro {
   pix: string;
 }
 
+export type TarefaStatus = "A fazer" | "Em andamento" | "Concluída";
+
+export interface Tarefa {
+  id: string;
+  clienteId: string;
+  titulo: string;
+  status: TarefaStatus;
+  responsavel?: string;
+  prazo?: string;
+  criadaEm: string;
+}
+
 export interface Listas {
   categorias: string[];
   formas: string[];
@@ -143,6 +155,7 @@ export interface AppState {
   contasFixas: ContaFixa[];
   propostas: Proposta[];
   engenheiros: Engenheiro[];
+  tarefas: Tarefa[];
   listas: Listas;
   ano: number;
   saldoInicial: number;

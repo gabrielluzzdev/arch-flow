@@ -66,6 +66,7 @@ export const estadoVazio = (): AppState => ({
   contasFixas: [],
   propostas: [],
   engenheiros: ENGENHEIROS_INICIAIS,
+  tarefas: [],
   listas: LISTAS_INICIAIS,
   ano: new Date().getFullYear(),
   saldoInicial: 0,

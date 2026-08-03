@@ -13,6 +13,7 @@ import type {
   Reembolsavel,
   Repasse,
   Servico,
+  Tarefa,
 } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { estadoVazio } from "./initial";
@@ -28,7 +29,8 @@ type Entidade =
   | "lancamentos"
   | "contasFixas"
   | "propostas"
-  | "engenheiros";
+  | "engenheiros"
+  | "tarefas";
 
 type Registro =
   | Cliente
@@ -40,7 +42,8 @@ type Registro =
   | Lancamento
   | ContaFixa
   | Proposta
-  | Engenheiro;
+  | Engenheiro
+  | Tarefa;
 
 // Mapeia cada entidade do AppState para a tabela correspondente no Supabase.
 const TABELAS: Record<Entidade, string> = {
@@ -54,6 +57,7 @@ const TABELAS: Record<Entidade, string> = {
   contasFixas: "contas_fixas",
   propostas: "propostas",
   engenheiros: "engenheiros",
+  tarefas: "tarefas",
 };
 
 // Ordem de limpeza: dependentes de "clientes" antes, "clientes" por último.
@@ -63,6 +67,7 @@ const TABELAS_DOMINIO = [
   "reembolsaveis",
   "parcelas",
   "servicos",
+  "tarefas",
   "propostas",
   "lancamentos",
   "contas_fixas",
@@ -130,6 +135,7 @@ async function carregarEstado(): Promise<AppState> {
     contasFixas,
     propostas,
     engenheiros,
+    tarefas,
     listasRows,
     config,
   ] = await Promise.all([
@@ -143,6 +149,7 @@ async function carregarEstado(): Promise<AppState> {
     supabase.from("contas_fixas").select("*"),
     supabase.from("propostas").select("*"),
     supabase.from("engenheiros").select("*"),
+    supabase.from("tarefas").select("*"),
     supabase.from("listas").select("*").order("ordem"),
     supabase.from("app_config").select("*").eq("id", 1).maybeSingle(),
   ]);
@@ -158,6 +165,7 @@ async function carregarEstado(): Promise<AppState> {
     contasFixas,
     propostas,
     engenheiros,
+    tarefas,
     listasRows,
     config,
   ]) {
@@ -193,6 +201,7 @@ async function carregarEstado(): Promise<AppState> {
     })),
     propostas: (propostas.data ?? []) as Proposta[],
     engenheiros: (engenheiros.data ?? []) as Engenheiro[],
+    tarefas: (tarefas.data ?? []) as Tarefa[],
     listas: listasVazias,
     ano: (config.data?.ano as number | undefined) ?? new Date().getFullYear(),
     saldoInicial: (config.data?.saldoInicial as number | undefined) ?? 0,
