@@ -25,7 +25,8 @@ export function Splash() {
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="text-center"
           >
-            <p className="font-display text-3xl tracking-tight text-foreground sm:text-4xl">
+            <img src="/logo-mark.png" alt="" className="mx-auto h-10 w-auto sm:h-12" />
+            <p className="font-display mt-4 text-3xl tracking-tight text-foreground sm:text-4xl">
               Luz Botelho
             </p>
             <p className="label-caps mt-3">Arquitetura</p>

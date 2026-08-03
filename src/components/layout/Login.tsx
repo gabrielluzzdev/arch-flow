@@ -30,7 +30,8 @@ export function Login() {
         className="w-full max-w-sm"
       >
         <div className="mb-8 text-center">
-          <p className="font-display text-3xl text-foreground">Luz Botelho</p>
+          <img src="/logo-mark.png" alt="" className="mx-auto h-9 w-auto" />
+          <p className="font-display mt-3 text-3xl text-foreground">Luz Botelho</p>
           <p className="label-caps mt-2">Arquitetura</p>
         </div>
         <Card>

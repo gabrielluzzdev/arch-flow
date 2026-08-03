@@ -34,9 +34,12 @@ export const NAV = [
 function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-border bg-sidebar lg:flex">
-      <div className="px-6 py-7">
-        <p className="font-display text-xl leading-none text-foreground">Luz Botelho</p>
-        <p className="label-caps mt-2">Arquitetura</p>
+      <div className="flex items-center gap-3 px-6 py-7">
+        <img src="/logo-mark.png" alt="" className="h-7 w-auto shrink-0" />
+        <div>
+          <p className="font-display text-xl leading-none text-foreground">Luz Botelho</p>
+          <p className="label-caps mt-2">Arquitetura</p>
+        </div>
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {NAV.map((item) => (
@@ -52,8 +55,8 @@ function Sidebar() {
         ))}
       </nav>
       <div className="m-3 flex items-center gap-3 rounded-lg border border-border p-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent font-display text-sm text-accent-foreground">
-          LB
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent p-1.5">
+          <img src="/logo-mark.png" alt="" className="h-full w-full object-contain" />
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm text-foreground">Luz Botelho</p>
@@ -100,7 +103,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-4">
-              <p className="font-display text-lg leading-none text-foreground lg:hidden">LB</p>
+              <img src="/logo-mark.png" alt="Luz Botelho Arquitetura" className="h-6 w-auto shrink-0 lg:hidden" />
               <h1 className="truncate text-base font-medium text-foreground sm:text-lg">{title}</h1>
               <div className="relative hidden min-w-0 flex-1 md:block">
                 <Search
@@ -150,9 +153,9 @@ function AccountMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Conta"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent font-display text-sm text-accent-foreground outline-none"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent p-1.5 outline-none"
         >
-          LB
+          <img src="/logo-mark.png" alt="" className="h-full w-full object-contain" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

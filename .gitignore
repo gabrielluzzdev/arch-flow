@@ -26,6 +26,10 @@ dist-ssr
 .env.*
 !.env.example
 
+# Referências soltas de marca (originais já processados em public/)
+/Logo.png
+/WhatsApp Image*.jpeg
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
