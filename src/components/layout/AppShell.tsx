@@ -9,10 +9,19 @@ import {
   Settings,
   Search,
   Plus,
+  LogOut,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/common/Button";
+import { useAuth } from "@/state/auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { InstallAppButton } from "@/components/layout/InstallAppButton";
 
 export const NAV = [
   { to: "/", label: "Visão Geral", icon: LayoutDashboard },
@@ -107,15 +116,14 @@ export function AppShell({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {action}
+              <InstallAppButton />
               <button
                 aria-label="Notificações"
                 className="hidden h-9 w-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:grid"
               >
                 <Bell className="h-4 w-4" strokeWidth={1.5} />
               </button>
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent font-display text-sm text-accent-foreground">
-                LB
-              </span>
+              <AccountMenu />
             </div>
           </div>
         </header>
@@ -131,6 +139,29 @@ export function AppShell({
       </div>
       <MobileNav />
     </div>
+  );
+}
+
+function AccountMenu() {
+  const { signOut } = useAuth();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Conta"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent font-display text-sm text-accent-foreground outline-none"
+        >
+          LB
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => signOut()}>
+          <LogOut className="h-4 w-4" strokeWidth={1.5} />
+          Sair
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
