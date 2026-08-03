@@ -15,6 +15,7 @@ import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as PropostasRouteImport } from './routes/propostas'
 import { Route as ClientesIndexRouteImport } from './routes/clientes.index'
 import { Route as ClientesClienteIdRouteImport } from './routes/clientes.$clienteId'
+import { Route as PropostaPropostaIdImprimirRouteImport } from './routes/proposta.$propostaId.imprimir'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,12 @@ const ClientesClienteIdRoute = ClientesClienteIdRouteImport.update({
   path: '/clientes/$clienteId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PropostaPropostaIdImprimirRoute =
+  PropostaPropostaIdImprimirRouteImport.update({
+    id: '/proposta/$propostaId/imprimir',
+    path: '/proposta/$propostaId/imprimir',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByFullPath {
   '/propostas': typeof PropostasRoute
   '/clientes/$clienteId': typeof ClientesClienteIdRoute
   '/clientes/': typeof ClientesIndexRoute
+  '/proposta/$propostaId/imprimir': typeof PropostaPropostaIdImprimirRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +70,7 @@ export interface FileRoutesByTo {
   '/propostas': typeof PropostasRoute
   '/clientes/$clienteId': typeof ClientesClienteIdRoute
   '/clientes': typeof ClientesIndexRoute
+  '/proposta/$propostaId/imprimir': typeof PropostaPropostaIdImprimirRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +80,7 @@ export interface FileRoutesById {
   '/propostas': typeof PropostasRoute
   '/clientes/$clienteId': typeof ClientesClienteIdRoute
   '/clientes/': typeof ClientesIndexRoute
+  '/proposta/$propostaId/imprimir': typeof PropostaPropostaIdImprimirRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
     | '/propostas'
     | '/clientes/$clienteId'
     | '/clientes/'
+    | '/proposta/$propostaId/imprimir'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +100,7 @@ export interface FileRouteTypes {
     | '/propostas'
     | '/clientes/$clienteId'
     | '/clientes'
+    | '/proposta/$propostaId/imprimir'
   id:
     | '__root__'
     | '/'
@@ -97,6 +109,7 @@ export interface FileRouteTypes {
     | '/propostas'
     | '/clientes/$clienteId'
     | '/clientes/'
+    | '/proposta/$propostaId/imprimir'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,6 +119,7 @@ export interface RootRouteChildren {
   PropostasRoute: typeof PropostasRoute
   ClientesClienteIdRoute: typeof ClientesClienteIdRoute
   ClientesIndexRoute: typeof ClientesIndexRoute
+  PropostaPropostaIdImprimirRoute: typeof PropostaPropostaIdImprimirRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +166,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientesClienteIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/proposta/$propostaId/imprimir': {
+      id: '/proposta/$propostaId/imprimir'
+      path: '/proposta/$propostaId/imprimir'
+      fullPath: '/proposta/$propostaId/imprimir'
+      preLoaderRoute: typeof PropostaPropostaIdImprimirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -162,6 +183,7 @@ const rootRouteChildren: RootRouteChildren = {
   PropostasRoute: PropostasRoute,
   ClientesClienteIdRoute: ClientesClienteIdRoute,
   ClientesIndexRoute: ClientesIndexRoute,
+  PropostaPropostaIdImprimirRoute: PropostaPropostaIdImprimirRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

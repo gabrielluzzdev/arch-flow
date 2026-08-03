@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { FileText } from "lucide-react";
+import { FileDown, FileText } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
 import { Card, EmptyState, Money, StatusPill } from "@/components/common/primitives";
@@ -104,6 +104,11 @@ function Propostas() {
                   <Button size="sm" variant="ghost" onClick={() => dispatch({ type: "add", entidade: "propostas", item: { ...p, id: uid(), status: "Rascunho", criadaEm: todayISO() } })}>
                     Duplicar
                   </Button>
+                  <Link to="/proposta/$propostaId/imprimir" params={{ propostaId: p.id }} target="_blank">
+                    <Button size="sm" variant="ghost">
+                      <FileDown className="h-4 w-4" strokeWidth={1.5} /> Exportar PDF
+                    </Button>
+                  </Link>
                 </div>
               </Card>
             );

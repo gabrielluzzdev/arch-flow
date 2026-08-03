@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Wallet } from "lucide-react";
+import { Download, Wallet } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
 import { Card, EmptyState, Money, StatusPill } from "@/components/common/primitives";
@@ -18,6 +18,7 @@ import {
   resumoMensal,
 } from "@/lib/calc";
 import { brl, formatDate, mesDaData, MESES, pct, todayISO, uid } from "@/lib/format";
+import { baixarArquivo, paraCSV } from "@/lib/csv";
 import { useApp, useDispatch } from "@/state/store";
 
 export const Route = createFileRoute("/financeiro")({
@@ -71,6 +72,24 @@ function Financeiro() {
   const totalSaida = lanc.reduce((a, l) => a + l.saida, 0);
   const resumo = resumoMensal(state);
 
+  const exportarCSV = () => {
+    const linhas = [
+      ["Data", "Mês", "P/E", "Categoria", "Descrição", "Entrada", "Saída", "Forma", "Conta"],
+      ...lanc.map((l) => [
+        formatDate(l.data),
+        mesDaData(l.data),
+        l.pe,
+        l.categoria,
+        l.descricao,
+        l.entrada ? l.entrada.toFixed(2).replace(".", ",") : "",
+        l.saida ? l.saida.toFixed(2).replace(".", ",") : "",
+        l.forma ?? "",
+        l.conta ?? "",
+      ]),
+    ];
+    baixarArquivo(`lancamentos-${todayISO()}.csv`, paraCSV(linhas));
+  };
+
   return (
     <AppShell title="Financeiro" action={<NovoButton label="Novo lançamento" onClick={() => setAberto(true)} />}>
       <div className="mb-4 -mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -89,6 +108,9 @@ function Financeiro() {
             <SelectInput className="h-9 w-48" options={state.listas.categorias} placeholder="Categoria" value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} />
             <SelectInput className="h-9 w-52" options={state.listas.contas} placeholder="Conta" value={f.conta} onChange={(e) => setF({ ...f, conta: e.target.value })} />
             <SelectInput className="h-9 w-36" options={state.listas.formas} placeholder="Forma" value={f.forma} onChange={(e) => setF({ ...f, forma: e.target.value })} />
+            <Button size="sm" variant="outline" onClick={exportarCSV} className="ml-auto">
+              <Download className="h-4 w-4" strokeWidth={1.5} /> Exportar CSV
+            </Button>
           </div>
           <Card className="overflow-x-auto p-0">
             {lanc.length ? (

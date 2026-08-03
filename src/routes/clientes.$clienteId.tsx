@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, Download, FileText, Paperclip, Trash2, Upload } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
 import { Card, EmptyState, Money, SectionTitle, StatusPill } from "@/components/common/primitives";
@@ -17,6 +17,27 @@ import {
 } from "@/lib/calc";
 import { brl, formatDate, num, pct, todayISO, uid } from "@/lib/format";
 import { useApp, useDispatch } from "@/state/store";
+import {
+  enviarAnexo,
+  listarAnexos,
+  pastaCliente,
+  removerAnexo,
+  urlAnexo,
+  type Anexo,
+} from "@/lib/storage";
+
+function somarDias(iso: string, dias: number) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function tamanhoLegivel(bytes?: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export const Route = createFileRoute("/clientes/$clienteId")({
   head: () => ({
@@ -38,6 +59,7 @@ const ABAS = [
   "Impostos NF",
   "Repasses",
   "Rentabilidade",
+  "Anexos",
   "Notas",
 ] as const;
 
@@ -48,7 +70,68 @@ function DetalheCliente() {
   const [aba, setAba] = useState<(typeof ABAS)[number]>("Resumo");
   const [modal, setModal] = useState<"servico" | "parcela" | null>(null);
   const [servico, setServico] = useState({ descricao: "", categoria: "Honorários", area: 0, valorM2: 0 });
-  const [parcela, setParcela] = useState({ parcela: "", vencimento: todayISO(), valor: 0 });
+  const [gerarParcelas, setGerarParcelas] = useState({
+    valorTotal: 0,
+    quantidade: 1,
+    primeiroVencimento: todayISO(),
+    intervaloDias: 30,
+  });
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [carregandoAnexos, setCarregandoAnexos] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    setCarregandoAnexos(true);
+    listarAnexos(pastaCliente(clienteId))
+      .then((lista) => {
+        if (!cancelado) setAnexos(lista);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Não foi possível carregar os anexos.");
+      })
+      .finally(() => {
+        if (!cancelado) setCarregandoAnexos(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [clienteId]);
+
+  const onEnviarArquivo = async (file: File) => {
+    setEnviando(true);
+    try {
+      await enviarAnexo(pastaCliente(clienteId), file);
+      setAnexos(await listarAnexos(pastaCliente(clienteId)));
+      toast.success("Arquivo enviado.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao enviar o arquivo.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const onBaixarArquivo = async (path: string) => {
+    try {
+      window.open(await urlAnexo(path), "_blank");
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao gerar o link de download.");
+    }
+  };
+
+  const onRemoverArquivo = async (path: string) => {
+    try {
+      await removerAnexo(path);
+      setAnexos((prev) => prev.filter((a) => a.path !== path));
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao remover o arquivo.");
+    }
+  };
 
   const cliente = state.clientes.find((c) => c.id === clienteId);
   if (!cliente) {
@@ -262,6 +345,57 @@ function DetalheCliente() {
           </div>
         ) : null}
 
+        {aba === "Anexos" ? (
+          <div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="label-caps">Arquivos do projeto</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onEnviarArquivo(file);
+                  e.target.value = "";
+                }}
+              />
+              <Button size="sm" variant="outline" disabled={enviando} onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" strokeWidth={1.5} />
+                {enviando ? "Enviando…" : "Enviar arquivo"}
+              </Button>
+            </div>
+            {carregandoAnexos ? (
+              <p className="text-sm text-muted-foreground">Carregando…</p>
+            ) : anexos.length ? (
+              <ul className="divide-y divide-border">
+                {anexos.map((a) => (
+                  <li key={a.path} className="flex items-center justify-between gap-3 py-3 text-sm">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+                      <div className="min-w-0">
+                        <p className="truncate">{a.nome.replace(/^\d+-/, "")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(a.criadoEm)} {a.tamanho ? `· ${tamanhoLegivel(a.tamanho)}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => onBaixarArquivo(a.path)} aria-label="Baixar">
+                        <Download className="h-4 w-4" strokeWidth={1.5} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => onRemoverArquivo(a.path)} aria-label="Remover">
+                        <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState icon={Paperclip} title="Nenhum anexo" description="Envie contratos, comprovantes ou outros documentos do projeto." />
+            )}
+          </div>
+        ) : null}
+
         {aba === "Notas" ? (
           <Field label="Notas do projeto">
             <TextInput
@@ -320,29 +454,76 @@ function DetalheCliente() {
         open={modal === "parcela"}
         onClose={() => setModal(null)}
         title="Nova parcela"
+        description="Gera uma ou várias parcelas de uma vez, dividindo o valor total igualmente."
         footer={
           <>
             <Button variant="ghost" onClick={() => setModal(null)}>Cancelar</Button>
             <Button
               onClick={() => {
-                if (!parcela.parcela) {
-                  toast.error("Informe o número da parcela.");
+                const { valorTotal, quantidade, primeiroVencimento, intervaloDias } = gerarParcelas;
+                if (!valorTotal || quantidade < 1) {
+                  toast.error("Informe o valor total e a quantidade de parcelas.");
                   return;
                 }
-                dispatch({ type: "add", entidade: "parcelas", item: { id: uid(), clienteId: cliente.id, ...parcela } });
-                setParcela({ parcela: "", vencimento: todayISO(), valor: 0 });
+                const valorBase = Math.round((valorTotal / quantidade) * 100) / 100;
+                const valorUltima = Math.round((valorTotal - valorBase * (quantidade - 1)) * 100) / 100;
+                for (let i = 0; i < quantidade; i++) {
+                  dispatch({
+                    type: "add",
+                    entidade: "parcelas",
+                    item: {
+                      id: uid(),
+                      clienteId: cliente.id,
+                      parcela: `${i + 1}/${quantidade}`,
+                      vencimento: somarDias(primeiroVencimento, i * intervaloDias),
+                      valor: i === quantidade - 1 ? valorUltima : valorBase,
+                    },
+                  });
+                }
+                setGerarParcelas({ valorTotal: 0, quantidade: 1, primeiroVencimento: todayISO(), intervaloDias: 30 });
                 setModal(null);
               }}
             >
-              Salvar
+              {gerarParcelas.quantidade > 1 ? `Gerar ${gerarParcelas.quantidade} parcelas` : "Salvar parcela"}
             </Button>
           </>
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Parcela"><TextInput placeholder="1/4" value={parcela.parcela} onChange={(e) => setParcela({ ...parcela, parcela: e.target.value })} /></Field>
-          <Field label="Vencimento"><TextInput type="date" value={parcela.vencimento} onChange={(e) => setParcela({ ...parcela, vencimento: e.target.value })} /></Field>
-          <Field label="Valor"><TextInput type="number" value={parcela.valor} onChange={(e) => setParcela({ ...parcela, valor: Number(e.target.value) })} /></Field>
+          <Field label="Valor total">
+            <TextInput
+              type="number"
+              value={gerarParcelas.valorTotal}
+              onChange={(e) => setGerarParcelas({ ...gerarParcelas, valorTotal: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="Quantidade de parcelas">
+            <TextInput
+              type="number"
+              min={1}
+              value={gerarParcelas.quantidade}
+              onChange={(e) => setGerarParcelas({ ...gerarParcelas, quantidade: Math.max(1, Number(e.target.value)) })}
+            />
+          </Field>
+          <Field label="Vencimento da 1ª parcela">
+            <TextInput
+              type="date"
+              value={gerarParcelas.primeiroVencimento}
+              onChange={(e) => setGerarParcelas({ ...gerarParcelas, primeiroVencimento: e.target.value })}
+            />
+          </Field>
+          <Field label="Intervalo entre parcelas (dias)">
+            <TextInput
+              type="number"
+              value={gerarParcelas.intervaloDias}
+              onChange={(e) => setGerarParcelas({ ...gerarParcelas, intervaloDias: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="Valor de cada parcela (calculado)" className="sm:col-span-2">
+            <div className="num flex h-10 items-center rounded-lg bg-muted/60 px-3 text-sm text-muted-foreground">
+              {gerarParcelas.quantidade > 0 ? brl(gerarParcelas.valorTotal / gerarParcelas.quantidade) : brl(0)}
+            </div>
+          </Field>
         </div>
       </Modal>
 
