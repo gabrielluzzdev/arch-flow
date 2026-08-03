@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
@@ -292,7 +293,10 @@ function Financeiro() {
             <Button variant="ghost" onClick={() => setAberto(false)}>Cancelar</Button>
             <Button
               onClick={() => {
-                if (!novo.descricao) return;
+                if (!novo.descricao) {
+                  toast.error("Informe a descrição do lançamento.");
+                  return;
+                }
                 dispatch({
                   type: "add",
                   entidade: "lancamentos",

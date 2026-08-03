@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Database, Eraser } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
@@ -105,7 +106,10 @@ function Configuracoes() {
                   variant="outline"
                   onClick={() => {
                     const v = (novos[g.chave] ?? "").trim();
-                    if (!v) return;
+                    if (!v) {
+                      toast.error("Informe um valor.");
+                      return;
+                    }
                     setLista(g.chave, [...valores, v]);
                     setNovos({ ...novos, [g.chave]: "" });
                   }}

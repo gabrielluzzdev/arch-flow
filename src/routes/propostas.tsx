@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { FileText } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
@@ -41,7 +42,10 @@ function Propostas() {
 
   const salvar = (status: "Rascunho" | "Enviada") => {
     const nome = form.clienteId ? (state.clientes.find((c) => c.id === form.clienteId)?.nome ?? "") : form.clienteNome;
-    if (!form.titulo || !nome) return;
+    if (!form.titulo || !nome) {
+      toast.error("Informe o título e o cliente da proposta.");
+      return;
+    }
     dispatch({
       type: "add",
       entidade: "propostas",

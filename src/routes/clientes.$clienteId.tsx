@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { ArrowLeft, FileText } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
@@ -281,7 +282,10 @@ function DetalheCliente() {
             <Button variant="ghost" onClick={() => setModal(null)}>Cancelar</Button>
             <Button
               onClick={() => {
-                if (!servico.descricao) return;
+                if (!servico.descricao) {
+                  toast.error("Informe a descrição do serviço.");
+                  return;
+                }
                 dispatch({
                   type: "add",
                   entidade: "servicos",
@@ -321,7 +325,10 @@ function DetalheCliente() {
             <Button variant="ghost" onClick={() => setModal(null)}>Cancelar</Button>
             <Button
               onClick={() => {
-                if (!parcela.parcela) return;
+                if (!parcela.parcela) {
+                  toast.error("Informe o número da parcela.");
+                  return;
+                }
                 dispatch({ type: "add", entidade: "parcelas", item: { id: uid(), clienteId: cliente.id, ...parcela } });
                 setParcela({ parcela: "", vencimento: todayISO(), valor: 0 });
                 setModal(null);

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { KanbanSquare, List, Users } from "lucide-react";
 import { AppShell, NovoButton } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
@@ -65,7 +66,10 @@ function Clientes() {
   }, [state, busca, filtroEtapa, filtroTipo, ordem]);
 
   const salvar = () => {
-    if (!form.nome) return;
+    if (!form.nome) {
+      toast.error("Informe o nome do cliente.");
+      return;
+    }
     dispatch({ type: "add", entidade: "clientes", item: { id: uid(), ...form } });
     setAberto(false);
     setForm({ ...form, nome: "", documento: "", endereco: "", numeroContrato: "" });
@@ -214,7 +218,10 @@ function Clientes() {
               variant="outline"
               className="mt-2 w-full"
               onClick={() => {
-                if (!novaEtapa.trim()) return;
+                if (!novaEtapa.trim()) {
+                  toast.error("Informe o nome da etapa.");
+                  return;
+                }
                 dispatch({ type: "setListas", listas: { etapas: [...state.listas.etapas, novaEtapa.trim()] } });
                 setNovaEtapa("");
               }}
