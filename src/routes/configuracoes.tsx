@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Database, Download, Eraser } from "lucide-react";
+import { Database, Download, Eraser, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/common/Button";
 import { Card } from "@/components/common/primitives";
@@ -9,6 +9,8 @@ import { Field, SelectInput, TextInput } from "@/components/common/fields";
 import { todayISO, uid } from "@/lib/format";
 import { baixarArquivo, paraCSV, parseCSV } from "@/lib/csv";
 import { useApp, useDispatch } from "@/state/store";
+import { useAuth } from "@/state/auth";
+import { atualizarPapel, criarUsuario, listarPerfis, removerUsuario, type Perfil } from "@/lib/usuarios";
 import type { Listas } from "@/lib/types";
 
 export const Route = createFileRoute("/configuracoes")({
@@ -66,6 +68,7 @@ const parseValor = (s: string) => {
 function Configuracoes() {
   const state = useApp();
   const dispatch = useDispatch();
+  const { isAdmin } = useAuth();
   const [novos, setNovos] = useState<Record<string, string>>({});
   const [tipoImport, setTipoImport] = useState<TipoImportacao>("lancamentos");
   const [linhasImport, setLinhasImport] = useState<string[][] | null>(null);
@@ -178,11 +181,15 @@ function Configuracoes() {
             <Button variant="outline" onClick={() => dispatch({ type: "seed" })}>
               <Database className="h-4 w-4" strokeWidth={1.5} /> Carregar dados de exemplo
             </Button>
-            <Button variant="ghost" onClick={() => dispatch({ type: "reset" })}>
-              <Eraser className="h-4 w-4" strokeWidth={1.5} /> Limpar dados
-            </Button>
+            {isAdmin ? (
+              <Button variant="ghost" onClick={() => dispatch({ type: "reset" })}>
+                <Eraser className="h-4 w-4" strokeWidth={1.5} /> Limpar dados
+              </Button>
+            ) : null}
           </div>
         </Card>
+
+        <CardUsuarios />
 
         <Card>
           <p className="label-caps mb-4">Engenheiros e chaves PIX</p>
@@ -327,5 +334,120 @@ function Configuracoes() {
         })}
       </div>
     </AppShell>
+  );
+}
+
+const PAPEL_OPCOES = [
+  { value: "colaborador", label: "Colaborador" },
+  { value: "admin", label: "Admin" },
+];
+
+function CardUsuarios() {
+  const { isAdmin, session } = useAuth();
+  const [perfis, setPerfis] = useState<Perfil[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [criando, setCriando] = useState(false);
+  const [novo, setNovo] = useState({ nome: "", email: "", senha: "", papel: "colaborador" as "admin" | "colaborador" });
+
+  const carregar = () => {
+    setCarregando(true);
+    listarPerfis()
+      .then(setPerfis)
+      .catch((err) => {
+        console.error(err);
+        toast.error("Falha ao carregar usuários.");
+      })
+      .finally(() => setCarregando(false));
+  };
+
+  useEffect(() => {
+    if (isAdmin) carregar();
+  }, [isAdmin]);
+
+  if (!isAdmin) return null;
+
+  const onCriar = async () => {
+    if (!novo.nome || !novo.email || !novo.senha) {
+      toast.error("Preencha nome, e-mail e senha.");
+      return;
+    }
+    setCriando(true);
+    try {
+      await criarUsuario(novo.nome, novo.email, novo.senha, novo.papel);
+      toast.success("Usuário criado — ele vai trocar a senha no primeiro acesso.");
+      setNovo({ nome: "", email: "", senha: "", papel: "colaborador" });
+      carregar();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao criar usuário.");
+    } finally {
+      setCriando(false);
+    }
+  };
+
+  const onRemover = async (id: string) => {
+    try {
+      await removerUsuario(id);
+      toast.success("Usuário removido.");
+      carregar();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao remover usuário.");
+    }
+  };
+
+  const onMudarPapel = async (id: string, papel: "admin" | "colaborador") => {
+    try {
+      await atualizarPapel(id, papel);
+      carregar();
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao atualizar papel.");
+    }
+  };
+
+  return (
+    <Card className="lg:col-span-2">
+      <p className="label-caps mb-1">Usuários do escritório</p>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Só administradores veem este card. Novos usuários entram com senha temporária e trocam no primeiro acesso.
+      </p>
+      {carregando ? (
+        <p className="text-sm text-muted-foreground">Carregando…</p>
+      ) : (
+        <ul className="space-y-2">
+          {perfis.map((p) => (
+            <li key={p.id} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_160px_auto]">
+              <span className="truncate text-sm text-foreground">{p.nome}</span>
+              <SelectInput
+                className="h-9"
+                options={PAPEL_OPCOES}
+                value={p.papel}
+                onChange={(e) => onMudarPapel(p.id, e.target.value as "admin" | "colaborador")}
+              />
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={p.id === session?.user.id}
+                onClick={() => onRemover(p.id)}
+              >
+                <Trash2 className="h-4 w-4" strokeWidth={1.5} /> Remover
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-4 grid gap-2 border-t border-border pt-4 sm:grid-cols-2">
+        <TextInput placeholder="Nome" value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} />
+        <TextInput placeholder="E-mail" type="email" value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} />
+        <TextInput placeholder="Senha temporária" type="password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
+        <SelectInput
+          options={PAPEL_OPCOES}
+          value={novo.papel}
+          onChange={(e) => setNovo({ ...novo, papel: e.target.value as "admin" | "colaborador" })}
+        />
+        <Button className="sm:col-span-2" disabled={criando} onClick={onCriar}>
+          {criando ? "Criando…" : "Adicionar usuário"}
+        </Button>
+      </div>
+    </Card>
   );
 }

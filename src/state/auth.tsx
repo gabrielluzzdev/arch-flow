@@ -2,10 +2,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
+type Papel = "admin" | "colaborador";
+
 interface AuthValue {
   session: Session | null;
   loading: boolean;
   mustChangePassword: boolean;
+  papel: Papel | null;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updatePassword: (password: string) => Promise<{ error: string | null }>;
@@ -16,6 +20,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [papel, setPapel] = useState<Papel | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -27,6 +32,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => subscription.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setPapel(null);
+      return;
+    }
+    let cancelado = false;
+    supabase
+      .from("perfis")
+      .select("papel")
+      .eq("id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelado) setPapel((data?.papel as Papel | undefined) ?? "colaborador");
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [session?.user.id]);
 
   const signIn: AuthValue["signIn"] = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -49,7 +73,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, loading, mustChangePassword, signIn, signOut, updatePassword }}
+      value={{
+        session,
+        loading,
+        mustChangePassword,
+        papel,
+        isAdmin: papel === "admin",
+        signIn,
+        signOut,
+        updatePassword,
+      }}
     >
       {children}
     </AuthContext.Provider>
